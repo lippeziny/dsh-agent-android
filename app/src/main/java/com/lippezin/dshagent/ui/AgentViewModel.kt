@@ -208,7 +208,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setThinkingLevel(value: String) {
+    fun updateThinkingLevel(value: String) {
         thinkingLevel = value
         prefs.setThinkingLevel(value)
     }
@@ -360,3 +360,4 @@ $result
         activeSessionId = prefs.getActiveSessionId(activeProjectId)
     }
 }
+
