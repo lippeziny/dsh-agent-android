@@ -26,6 +26,37 @@ class ShellRunner(private val context: Context) {
         }
     }
 
+    private fun newShizukuProcess(command: String): Process {
+        val commandArgs = arrayOf("sh", "-c", command)
+        val signatures = listOf(
+            arrayOf(Array<String>::class.java, Array<String>::class.java, String::class.java),
+            arrayOf(Array<String>::class.java, java.util.Map::class.java, String::class.java),
+            arrayOf(Array<String>::class.java, String::class.java),
+        )
+
+        for (signature in signatures) {
+            try {
+                val method = Shizuku::class.java.getMethod("newProcess", *signature)
+                method.isAccessible = true
+                return when (signature.size) {
+                    3 -> method.invoke(null, commandArgs, null, null) as Process
+                    2 -> method.invoke(null, commandArgs, null) as Process
+                    else -> continue
+                }
+            } catch (_: NoSuchMethodException) {
+                // A assinatura da API pode variar entre versões do Shizuku.
+            } catch (_: IllegalAccessException) {
+                // A API pode estar escondida ou protegida por módulos diferentes.
+            } catch (_: ReflectiveOperationException) {
+                // Cada assinatura é tentada em ordem de compatibilidade.
+            }
+        }
+
+        throw IllegalStateException(
+            "Shizuku.newProcess() não está disponível nesta versão da API. Verifique a dependência dev.rikka.shizuku:api."
+        )
+    }
+
     suspend fun execute(rawCommand: String): String = withContext(Dispatchers.IO) {
         check(Shizuku.pingBinder()) { "Shizuku não está ativo. Inicie o serviço e tente novamente." }
         check(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
@@ -39,9 +70,9 @@ class ShellRunner(private val context: Context) {
         if (command.startsWith("adb shell ", ignoreCase = true)) command = command.substringAfter("adb shell ").trim()
         else if (command.equals("adb shell", ignoreCase = true)) command = "id"
         else if (command.startsWith("adb ", ignoreCase = true)) {
-            throw IllegalArgumentException("Este app executa comandos no shell do próprio Android. Para comandos locais, use `adb shell <comando>`; `adb install`, `adb devices` e comandos do computador não rodam no aparelho.")
+            throw IllegalArgumentException("Este app executa comandos no shell do próprio Android. Para comandos locais, use `adb shell <comando>`; `adb install`, `adb devices` e comandos do sistema operacional local não são suportados aqui.")
         }
-        val process = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
+        val process = newShizukuProcess(command)
         val stdout = async(Dispatchers.IO) {
             process.inputStream.bufferedReader().use { it.readText() }
         }
